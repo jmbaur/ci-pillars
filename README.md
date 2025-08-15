@@ -1,98 +1,90 @@
-Continuous integration (CI) systems should be supported by certain general
-design considerations (or guiding principles) in order that they maintain their
-value as the use of the underlying integration system increases - both in terms
-of the number of developers and the complexity of the build systems and
-software they execute in CI. Below we outline these considerations at a
-high level, accompanied by lower-level sub-items, in order to inform any
-technical implementation. This list is unordered so as to emphasize equal
-consideration for each of these general principles (of course, though, any
-implementation should define specific technical goals based on these principles
-and triage those technical goals according to the organization’s current
-needs/deficiencies).
+# CI System Design Considerations
 
-* Reliable
-   1. Failures should not be resolved by retrying;
-   2. Different CI jobs running in the same compute environment should not
-      affect the outcome of another job;
-   3. Failures are only related to relevant code changes (not invalid auth
-      credentials, or disk space issues, or time of day, etc.);
-* Available
-   1. Jobs don’t wait unreasonable amounts of time in order to begin executing;
-   2. Relevant monitoring/telemetry (backend) services run at different layers
-      of the stack to provide insight on resource bottlenecks;
-* Efficient
-   1. Jobs utilize a set of system resources (disk IOPS, disk space, CPU
-      cycles, RSS allocations, network I/O, etc.) commensurate with the job’s
-      requirements;
-   2. Inefficient jobs are right-sized (ideally via automation but at least via
-      human intervention, supported by automatically-captured historical
-      metrics);
-   3. CI execution environments shouldn't survive longer than is cost-effective
-      (note: long provisioning times for some execution environments may tip
-      the balance in favor toward quasi-ephemeral vs. purely ephemeral);
-* Secure
-   1. The permissions of users in CI should be scoped to the minimum set
-      required for the job (not root by default);
-   2. Credentials required for a job to execute successfully should be
-      short-lived (preferably provided by a 3rd-party auth service and
-      provisioned per-job for auditing purposes) and not written to the filesystem;
-   3. Network configuration of the CI execution environment should not permit
-      unnecessary egress/ingress;
-   4. CI artifacts which are intended to be consumed by production devices
-      should be signed by a trusted authority and associated/registered with
-      the CI job which produced it;
-* Clear
-   1. Execution environment version and definition should be easy to
-      reproduce/introspect if only the CI job output is available (i.e. the job
-      indicates the OCI image, tag, and hash used for the job or the job indicates
-      the NixOS toplevel path used for the job);
-   2. Log lines should be limited to reporting information which helps diagnose
-      a failure (lines indicating success should be discouraged), artifacts
-      produced as a side-effect of a job should only provide useful artifacts in
-      successful cases, etc.;
-   3. In the case of failure, CI jobs should provide a single reproduction
-      command which developers can use to execute all steps within the job
-      within the same execution environment outside of CI, if desired;
-* Supportive
-   1. CI should work for the developer, not against them. Unavoidably
-      long-running or flaky jobs which do not serve the needs of
-      high-velocity repositories/branches should be pruned (flagged automatically via
-      telemetry);
-   2. In the case of failure, a CI system should egress as much work to a cache
-      as possible in order to avoid a developer’s machine doing a lot of the
-      same work in order to reproduce;
-* Performant
-   1. Inter-job dependencies should not unnecessarily block progress (fan-ins
-      should be used sparingly);
-   2. Jobs should not define steps which unnecessarily block progress (e.g. if
-      2 things can be fetched in parallel, but are fetched sequentially, then
-      rewrite in order to fetch simultaneously)
-* Observable
-   1. CI execution environments should automatically report host metrics
-      capturing things like:
-      1. version of the CI execution environment (OCI image name+tag+hash,
-         NixOS /run/current-system, etc.)
-      2. `machine-id`
-      3. available memory
-      4. Disk I/O metrics (available space, IOPS, etc.)
-      5. network ingress/egress
-      6. unused CPU
-   2. CI execution environments or jobs should work to instrument the PID tree
-      for their jobs to emit metrics related to per-PID resource usage;
-   3. CI logs should be visible within the CI UI but also centrally ingested
-      (helps with cases like finding all jobs which failed in some specific,
-      identifiable way);
-* Flexible
-   1. CI systems should easily provide support for execution environments which
-      correspond to the host platforms used by developers and target platforms
-      associated with the runtime environment of the developed software (where these
-      platforms may be changing in time);
-   2. CI systems should provide first-class support for rolling out execution
-      environment updates (newer OCI runtime version or variant, new CI AMI
-      releases, etc.);
-   3. CI systems should be “premises-agnostic”, wherever practical (able to run
-      as easily locally as on-prem as within various cloud environments).
-   4. Abstractions over common CI operations should be wrapped in type-safe
-      “modules” (type-safe, here, means that exposed parameters are typed),
-      consumable in a way that’s independent of the specific CI system (no
-      Actions or Orbs or Components)
+Continuous integration (CI) systems should be supported by certain general
+design considerations (or guiding principles) to maintain their value as the
+use of the underlying integration system increases - both in terms of the
+number of developers and the complexity of the build systems and software they
+execute in CI.
+
+Below are these considerations at a high level, with lower-level sub-items to
+inform technical implementation. This ordering of the high-level considerations
+does not imply relative emphasis for each principle (though any implementation
+should rank the importance of these principles based on specific technical
+goals corresponding to the organization’s current needs and deficiencies).
+
+---
+
+## Reliable
+1. **Avoid** resolving failures by retrying.
+2. **Prevent** different CI jobs in the same compute environment from affecting
+   each other’s outcomes.
+3. **Ensure** failures are only related to relevant code changes (not invalid
+   auth credentials, disk space issues, time of day, etc.).
+
+---
+
+## Available
+1. **Prevent** jobs from waiting unreasonable amounts of time before starting
+   execution.
+2. **Operate** relevant monitoring/telemetry (backend) services at different
+   layers of the stack to provide insight into resource bottlenecks.
+
+---
+
+## Efficient
+1. **Utilize** system resources (disk IOPS, disk space, CPU cycles, RSS
+   allocations, network I/O, etc.) in proportion to the job’s requirements.
+2. **Right-size** inefficient jobs (ideally via automation, but at least via
+   human intervention supported by automatically-captured historical metrics).
+3. **Avoid** keeping CI execution environments alive longer than is
+   cost-effective.  *Note: long provisioning times for some environments may
+   justify quasi-ephemeral instead of purely ephemeral execution.*
+
+---
+
+## Secure
+1. **Scope** user permissions in CI to the minimum set required for the job (not `root` by default).
+2. **Use** short-lived credentials for job execution (preferably provided by a third-party auth service and provisioned per-job for auditing) and **avoid** writing them to the filesystem.
+3. **Restrict** network configuration in CI execution environments to disallow unnecessary egress/ingress.
+4. **Sign** CI artifacts intended for production consumption with a trusted authority, and **register** them with the CI job that produced them.
+
+---
+
+## Clear
+1. **Make** execution environment versions and definitions easy to reproduce/introspect from the CI job output alone (e.g., by indicating the OCI image, tag, and hash used, or the NixOS toplevel path).
+2. **Limit** log lines to information that helps diagnose failures (discourage success-only messages) and **ensure** that artifacts produced as side effects are only provided in successful cases.
+3. **Provide** a single reproduction command in case of failure, allowing developers to execute all job steps in the same environment outside of CI.
+
+---
+
+## Supportive
+1. **Prune** unavoidably long-running or flaky jobs that do not serve the needs of high-velocity repositories/branches (flag automatically via telemetry).
+2. **Egress** as much work to a cache as possible in the event of failure to prevent redundant effort on developers’ machines.
+
+---
+
+## Performant
+1. **Avoid** allowing inter-job dependencies to unnecessarily block progress (use fan-ins sparingly).
+2. **Avoid** defining sequential steps that could be run in parallel (e.g., fetch two items simultaneously instead of one after the other).
+
+---
+
+## Observable
+1. **Publish** host metrics from CI execution environments, including:
+   - version of the CI execution environment (OCI image name+tag+hash, NixOS `/run/current-system`, etc.)
+   - `machine-id`
+   - available memory
+   - disk I/O metrics (available space, IOPS, etc.)
+   - network ingress/egress
+   - unused CPU
+2. **Instrument** the PID tree for each job to emit per-PID resource usage metrics.
+3. **Make** CI logs visible within the CI UI and **centrally ingest** them (to support finding all jobs that failed in a specific, identifiable way).
+
+---
+
+## Flexible
+1. **Support** execution environments matching both developers’ host platforms and the target runtime platforms of the software (even as these platforms evolve over time).
+2. **Provide** first-class support for rolling out execution environment updates (new OCI runtime versions or variants, new CI AMI releases, etc.).
+3. **Remain** “premises-agnostic” wherever practical (able to run as easily locally, on-premises, or in various cloud environments).
+4. **Wrap** abstractions over common CI operations in type-safe “modules” (ensuring typed parameters), consumable in a way that is independent of the specific CI system (no Actions, Orbs, or Components).
+
